@@ -1,0 +1,258 @@
+pico-8 cartridge // http://www.pico-8.com
+version 42
+__lua__
+--muertos
+--by pell
+function _init()
+	poke(0x5f2e,1)
+	anim_timer=0
+	mapsetup()
+	makeplayer()
+	gamestate="title" --states=title,overview,d1clear,d2clear,d3clear--
+	musicstate=false
+end
+
+function _update()
+	if gamestate=="title" then
+		if btnp(4) then gamestate="overview" end
+	elseif gamestate=="overview" then
+		if btnp(4) then gamestate="day1" end
+	elseif gamestate=="day2" or gamestate=="day3" or gamestate=="ending" then
+		if btnp(4) then gamestate="day1" end
+	elseif gamestate=="day1" then
+		move()
+		tile_timer()
+		anim(p)
+		interact()
+		if musicstate==false then
+			music(0,0,3)
+			musicstate=true
+		end
+	end
+end
+
+function _draw()
+	cls()
+	if gamestate=="title" then
+		spr(192,16,40,13,4)
+		print("press z to start",32,80,5)
+	elseif gamestate=="overview" then
+		print("you awaken, liquid grasping\nyour lungs as you attempt to\ngasp. you cannot and need not\nbreathe. as you climb from the\nmurky depths, slowly, you can\nfeel your decayed body tear\nand ache.\n\nyou find a cloak and festival\nmask, abandoned in the murk.\nthey might as well be yours.\n\nyou need to know why you\nmet your end.\nit is your final purpose.",4,16,7)
+	elseif gamestate=="d1clear" then
+		print("Day 2",55,20,8)
+		print("i was lucky, they mistook me\nfor a tourist. still, i am no\ncloser to the answers i need.\nwhy would god wrench me from\ndeath only to suffer?\n\nperhaps my soul is too heavy.",4,40,7)
+	elseif gamestate=="day1" then
+		anim_tile()
+		draw_map()
+		draw_npcs()
+		draw_player()
+		if dact then draw_dialog(dact) end
+		pal(15,132,1)
+	end
+end
+
+-->8
+--player--
+function makeplayer()
+	p={
+	x=3,
+	y=10,
+	sprite=1,
+	item=0,
+	flip=false
+	}
+end
+
+function draw_player()
+	outline_obj(p,1)
+	spr(p.sprite,p.x*8,p.y*8,1,1,p.flip)
+end
+
+function move()
+	newx=p.x
+	newy=p.y
+	if not dact then
+		if (btnp(⬅️)) newx-=1 p.flip=true
+		if (btnp(➡️)) newx+=1 p.flip=false
+		if (btnp(⬆️)) newy-=1
+		if (btnp(⬇️)) newy+=1
+		if (can_move(newx,newy)) then
+			p.x=mid(0,newx,127)
+			p.y=mid(0,newy,63)
+		else
+			sfx(0)
+		end
+	end
+end
+end
+
+function outline_obj(o,col)
+    pal({1,1,1,1,1,1,1,1,1,1,1,1,1,1,1})
+    spr(o.sprite,o.x*8-1,o.y*8,1,1,o.flip)
+    spr(o.sprite,o.x*8+1,o.y*8,1,1,o.flip)
+    spr(o.sprite,o.x*8,o.y*8-1,1,1,o.flip)
+    spr(o.sprite,o.x*8,o.y*8+1,1,1,o.flip)
+    pal()
+end
+
+function anim(obj)
+	obj.sprite += 1/15
+	if (obj.sprite >= 4) obj.sprite = 1 -- loops 0-3
+end
+
+-->8
+--map--
+function mapsetup()
+	wall=0
+	npc_flag=1
+	door=2
+	anim_timer=0
+	worldstate=0
+	tileanim={
+	a=11,
+	b=12,
+	c=28,
+	d=29,
+	s1=42,
+	s2=43,
+	s3=44,
+	s4=45,
+	}
+end
+
+function draw_map()
+	mapx=flr(p.x/16)*16
+	mapy=flr(p.y/16)*16
+	camera(mapx*8,mapy*8)
+	map(0,0,0,0,128,64)
+end
+
+function istile(tile_type,x,y)
+	tile=mget(x,y)
+	has_flag=fget(tile,tile_type)
+	return has_flag
+end
+
+function can_move(x,y)
+	return not istile(wall,x,y)
+end
+
+function tile_timer()
+	if anim_timer<15 then
+		anim_timer+=1
+	else anim_timer=0
+	end
+end
+
+function anim_tile()
+	if anim_timer==15 then
+		for y=0,63 do
+			for x=0,127 do
+				if mget(x,y)==tileanim.a then
+					mset(x,y,tileanim.b)
+				elseif mget(x,y)==tileanim.b then
+					mset(x,y,tileanim.a)
+				elseif mget(x,y)==tileanim.c then
+					mset(x,y,tileanim.d)
+				elseif mget(x,y)==tileanim.d then
+					mset(x,y,tileanim.c)
+				end
+			end
+			for x=0,0 do
+				if mget(x,y)==tileanim.s1 then
+					mset(x,y,tileanim.s2)
+				elseif mget(x,y)==tileanim.s2 then
+					mset(x,y,tileanim.s3)
+				elseif mget(x,y)==tileanim.s3 then
+					mset(x,y,tileanim.s4)
+				elseif mget(x,y)==tileanim.s4 then
+					mset(x,y,tileanim.s1)
+				end
+			end
+		end
+	end
+end
+
+-->8
+--npc & dialog--
+npcs={
+	{x=24,y=16,sprite=61,w=1,h=1,f=false,dialog={"the sign reads\n'prohibido nadar'.","i'm not going back in the\ndrink anyway."}},
+	{x=72,y=104,sprite=39,w=1,h=1,f=true,dialog={"what a beautiful day!","i could go for a swim."}},
+	{x=104,y=72,sprite=51,w=1,h=1,f=true,dialog={"welcome to isla de janitzio.","weird costume.\ndia de los muertos\nisn't for another few days.","well, if you like to party,\nname's erandi, but people\ncall me randy."}},
+	{x=136,y=16,sprite=27,w=1,h=1,f=false,dialog={"not mine.","not that i'd have one,\nanyway."}},
+	{x=176,y=24,sprite=33,w=1,h=1,f=true,dialog={"sometimes, i wonder\nwhat would happen if the \ntourists never came back.","i'd be glad to see a\nlot of them go,\nbut i'd miss their money!"}},
+	{x=192,y=64,sprite=34,w=1,h=1,f=false,dialog={"dia de los muertos is in\na few days.","You're not going to get many\nanswers this week,\n★fantasma★."}},
+	{x=192,y=80,sprite=36,w=1,h=1,f=false,dialog={"leave, tourist.","go to the gift shop and\nleave me and my\ndaughter alone."}},
+	{x=288,y=96,w=2,h=2,sprite=5,f=false,dialog={"crowds are rough today.","better go elsewhere.",crowd=2}},
+	--{x=,y=,w=,h=,sprite=,f=,dialog={}},
+}
+function draw_npcs()
+	for npc in all(npcs) do
+		pal({1,1,1,1,1,1,1,1,1,1,1,1,1,1,1})
+		spr(npc.sprite,npc.x-1,npc.y,1,1,npc.f)
+		spr(npc.sprite,npc.x+1,npc.y,1,1,npc.f)
+		spr(npc.sprite,npc.x,npc.y-1,1,1,npc.f)
+		spr(npc.sprite,npc.x,npc.y+1,1,1,npc.f)
+		pal()
+		spr(npc.sprite,npc.x,npc.y,npc.w,npc.h,npc.f)
+	end
+end
+
+function draw_dialog()
+	mapx=flr(p.x/16)*16
+	mapy=flr(p.y/16)*16
+	rectfill(mapx*8+4,mapy*8+86,mapx*8+124,mapy*8+122,1)
+	rect(mapx*8+6,mapy*8+88,mapx*8+122,mapy*8+120,9)
+	print(dact[di],mapx*8+10,mapy*8+92,7)
+end
+
+function crowd()
+	for npc in all(npcs) do
+		if npc.crowd==2 then
+			if anim_timer>=15 and npc.sprite==5 then
+				npc.sprite+=2
+			elseif anim_timer>=15 and npc.sprite==7 then
+				npc.sprite-=2
+			end
+		end
+	end
+end
+
+function interact()
+	if not btnp(4) then return end
+		if dact then
+			di+=1
+		if di>#dact then
+			dact=nil
+		end
+		return
+		end 
+		for npc in all(npcs) do
+			if abs(p.x*8-npc.x)<=8 and abs(p.y*8-npc.y)<=8 then
+				if npc.y==p.y*8 or npc.x==p.x*8 then
+					dnpc,dact=npc,npc.dialog
+					di=1
+				end
+			end
+		end
+end
+
+--npcs_day1={
+	--{x=24,y=16,sprite=61,w=1,h=1,f=false,dialog={"the sign reads\n'prohibido nadar'.","i'm not going back in the\ndrink anyway."}},
+	--{x=72,y=104,sprite=39,w=1,h=1,f=true,dialog={"what a beautiful day!","i could go for a swim."}},
+	--{x=104,y=72,sprite=51,w=1,h=1,f=true,dialog={"welcome to isla de janitzio.","weird costume.\ndia de los muertos\nisn't for another few days.","well, if you like to party,\nname's erandi, but people\ncall me randy."}},
+	--{x=136,y=16,sprite=27,w=1,h=1,f=false,dialog={"not mine.","not that i'd have one,\nanyway."}},
+	--{x=176,y=24,sprite=33,w=1,h=1,f=true,dialog={"sometimes, i wonder\nwhat would happen if the \ntourists never came back.","i'd be glad to see a\nlot of them go,\nbut i'd miss their money!"}},
+	--{x=192,y=64,sprite=34,w=1,h=1,f=false,dialog={"dia de los muertos is in\na few days.","You're not going to get many\nanswers this week,\n★fantasma★."}},
+	--{x=192,y=80,sprite=36,w=1,h=1,f=false,dialog={"leave, tourist.","go to the gift shop and\nleave me and my\ndaughter alone."}},
+--}
+--npcs_day2={
+	--{x=,y=,w=,h=,sprite=,f=,dialog={}},
+	--{x=,y=,w=,h=,sprite=,f=,dialog={}},
+	--{x=,y=,w=,h=,sprite=,f=,dialog={}},
+	--{x=,y=,w=,h=,sprite=,f=,dialog={}},
+	--{x=,y=,w=,h=,sprite=,f=,dialog={}},
+	--{x=,y=,w=,h=,sprite=,f=,dialog={}},
+	--{x=,y=,w=,h=,sprite=,f=,dialog={}},
+	--{x=,y=,w=,h=,sprite=,f=,dialog={}},
+--}
